@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       openwrt_tag:
-        description: 'OpenWrt 官方 tag（例 v25.12.5）'
+        description: 'OpenWrt 官方 tag（例 v25.12.6）'
         required: true
-        default: 'v25.12.5'
+        default: 'v25.12.6'
       skip_vermagic_check:
         description: '略過 vermagic 與官方一致的檢查（不建議；不一致時無法 apk add 官方 kmod）'
         type: boolean

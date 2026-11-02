@@ -33,7 +33,7 @@ nmbm0:1024k(bl2),512k(u-boot-env),2048k(Factory),2048k(fip),512k(product_info),5
 
 ## 使用方式
 
-1. 到 Actions 頁籤，選「Build OpenWrt for RG-X60 Pro (107M)」，按 Run workflow，輸入官方 tag（例如 `v25.12.5`）。
+1. 到 Actions 頁籤，選「Build OpenWrt for RG-X60 Pro (107M)」，按 Run workflow，輸入官方 tag（例如 `v25.12.6`）。
 2. workflow 會依序檢查以下關卡，任何一項不符就直接失敗：
    - 上游 DTS 的 ubi reg、compatible、model，以及 7 個 partition 起點都和預期一致。
    - `packages.txt` 的每個套件在 `make defconfig` 之後都還是 `=y`。
