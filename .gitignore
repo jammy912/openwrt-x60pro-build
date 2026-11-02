@@ -1,0 +1,9 @@
+# 刷機備份含 Factory 校正資料與 MAC，絕不能進 repo
+*.bin
+*.img
+*.tar.gz
+backup/
+openwrt/
+
+# 私人操作文件（含 IP/帳號/本機路徑），只留本機
+*.local.md
