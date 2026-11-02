@@ -9,10 +9,12 @@
 set -euo pipefail
 
 die() { echo "::error::$*" >&2; exit 1; }
-[ $# -eq 1 ] || die "用法: $0 <sysupgrade.bin>"
+[ $# -ge 1 ] && [ $# -le 2 ] || die "用法: $0 <sysupgrade.bin> [packages.txt]"
 IMG=$1
+PKGS_FILE=${2:-}
 [ -f "$IMG" ] || die "找不到 $IMG"
 for t in tar dumpimage dtc; do command -v $t >/dev/null || die "缺少工具 $t"; done
+[ -z "$PKGS_FILE" ] || command -v unsquashfs >/dev/null || die "缺少工具 unsquashfs（squashfs-tools）"
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 tar -xf "$IMG" -C "$T" 2>/dev/null || die "不是 tar 格式（拿錯檔案？要 squashfs-sysupgrade.bin）"
@@ -43,5 +45,25 @@ META=$(grep -aoE '"supported_devices" *: *\[[^]]*\]' "$IMG" | head -n1 || true)
 echo "${META:-（找不到 metadata）}"
 echo "$META" | grep -qF '"ruijie,rg-x60-pro-107m"' || die "metadata 的 supported_devices 不含 ruijie,rg-x60-pro-107m"
 echo "$META" | grep -qE '"ruijie,rg-x60-pro"' && die "metadata 竟然允許官方 board name，會讓 63MB 版互刷"
+
+if [ -n "$PKGS_FILE" ]; then
+  echo "== rootfs 實際安裝的套件（/lib/apk/db/installed） =="
+  R=$(find "$T" -type f -name root | head -n1)
+  [ -n "$R" ] || die "tar 內找不到 root（squashfs）"
+  unsquashfs -cat "$R" lib/apk/db/installed 2>/dev/null | sed -n 's/^P://p' | sort -u > "$T/installed.txt"
+  [ -s "$T/installed.txt" ] || die "讀不到 rootfs 的 apk installed db"
+  echo "共 $(wc -l < "$T/installed.txt") 個套件"
+  PFAIL=0
+  while IFS= read -r line; do
+    line="${line%%#*}"; line="$(echo "$line" | tr -d '[:space:]')"
+    case "$line" in
+      ''|CONFIG_*) ;;
+      -*) grep -qxF "${line:1}" "$T/installed.txt" && { echo "::error::image 內不該有 ${line:1}"; PFAIL=1; } ;;
+      *)  grep -qxF "$line" "$T/installed.txt" || { echo "::error::image 內缺少 $line"; PFAIL=1; } ;;
+    esac
+  done < "$PKGS_FILE"
+  [ $PFAIL = 0 ] || die "image 套件內容與 packages.txt 不符"
+  echo "OK: packages.txt 的內建/排除全部符合"
+fi
 
 echo "verify-image: 全部通過"

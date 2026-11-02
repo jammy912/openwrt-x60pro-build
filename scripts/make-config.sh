@@ -24,13 +24,22 @@ DEVICE=ruijie_rg-x60-pro-107m
 curl -fsSL "$BASE/config.buildinfo" -o official.buildinfo || die "抓不到 $BASE/config.buildinfo"
 
 # 解析套件清單
-INCLUDE=(); EXCLUDE=()
+INCLUDE=(); EXCLUDE=(); RAWCFG=()
 while IFS= read -r line; do
   line="${line%%#*}"; line="$(echo "$line" | tr -d '[:space:]')"
   [ -z "$line" ] && continue
-  if [ "${line:0:1}" = "-" ]; then EXCLUDE+=("${line:1}"); else INCLUDE+=("$line"); fi
+  case "$line" in
+    CONFIG_*) RAWCFG+=("$line") ;;
+    -*)       EXCLUDE+=("${line:1}") ;;
+    *)        INCLUDE+=("$line") ;;
+  esac
 done < "$PKGS_FILE"
-echo "套件：內建 ${#INCLUDE[@]} 個，排除 ${#EXCLUDE[@]} 個"
+echo "套件：內建 ${#INCLUDE[@]} 個，排除 ${#EXCLUDE[@]} 個，原樣設定 ${#RAWCFG[@]} 行"
+# 官方 config 開了 TARGET_PER_DEVICE_ROOTFS：預設套件會是 =m，真正進不進 rootfs 由
+# per-device 套件字串決定（include/image.mk 的 DEVICE_EXTRA_PACKAGES / merge_packages），
+# 所以排除要寫成 "-pkg" 放進這個字串，單寫 "is not set" 無效。
+DEVPKG_SYM="CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_${DEVICE}"
+DEVPKG_VAL=$(printf -- '-%s ' "${EXCLUDE[@]}"); DEVPKG_VAL="${DEVPKG_VAL% }"
 
 # 從官方 seed 拿掉：所有 device 選擇、建 SDK/ImageBuilder/toolchain/SBOM/全部 userspace 套件
 #（這些只影響產出物與編譯時間，不影響 kernel config），以及要排除的套件
@@ -46,8 +55,9 @@ grep -vE '^CONFIG_TARGET_DEVICE_|^CONFIG_TARGET_ALL_PROFILES=|^CONFIG_(SDK|SDK_L
   echo "# CONFIG_MAKE_TOOLCHAIN is not set"
   echo "# CONFIG_ALL_NONSHARED is not set"
   echo "# CONFIG_JSON_CYCLONEDX_SBOM is not set"
+  echo "${DEVPKG_SYM}=\"${DEVPKG_VAL}\""
+  for c in "${RAWCFG[@]}"; do echo "$c"; done
   for p in "${INCLUDE[@]}"; do echo "CONFIG_PACKAGE_${p}=y"; done
-  for p in "${EXCLUDE[@]}"; do echo "# CONFIG_PACKAGE_${p} is not set"; done
 } >> .config
 
 cp .config seed.config
@@ -63,10 +73,16 @@ chk_y "CONFIG_TARGET_MULTI_PROFILE"
 chk_y "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_${DEVICE}"
 chk_y "CONFIG_ALL_KMODS"
 chk_y "CONFIG_COLLECT_KERNEL_DEBUG"
-for p in "${INCLUDE[@]}"; do chk_y "CONFIG_PACKAGE_${p}"; done
-for p in "${EXCLUDE[@]}"; do
-  grep -q "^CONFIG_PACKAGE_${p}=[ym]$" .config && { echo "::error::$p 應排除但被選進來（被其他套件依賴？）"; FAIL=1; }
+for c in "${RAWCFG[@]}"; do
+  grep -qxF "$c" .config || { echo "::error::defconfig 後 $c 沒有生效"; FAIL=1; }
 done
+for p in "${INCLUDE[@]}"; do chk_y "CONFIG_PACKAGE_${p}"; done
+# 排除的套件：不可是 =y（=y 會進所有 rootfs）；=m 沒關係（per-device rootfs 由下面字串排除）
+for p in "${EXCLUDE[@]}"; do
+  grep -q "^CONFIG_PACKAGE_${p}=y$" .config && { echo "::error::$p 應排除但被選成 =y（被其他 =y 套件依賴？）"; FAIL=1; }
+done
+grep -qxF "${DEVPKG_SYM}=\"${DEVPKG_VAL}\"" .config \
+  || { echo "::error::per-device 套件字串沒有生效: $(grep "^${DEVPKG_SYM}=" .config || echo 不存在)"; FAIL=1; }
 grep -q '^CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/' .config \
   || { echo "::error::CONFIG_VERSION_REPO 不是官方 releases，distfeeds 會指錯"; FAIL=1; }
 [ $FAIL = 0 ] || die ".config 驗證失敗（套件名稱在新版可能更名或移除，請修改 config/packages.txt）"

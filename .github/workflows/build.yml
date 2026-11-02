@@ -45,7 +45,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
             gettext git libncurses-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget \
-            u-boot-tools device-tree-compiler
+            u-boot-tools device-tree-compiler squashfs-tools
 
       - name: Clone 官方 OpenWrt ${{ env.OPENWRT_TAG }}
         run: |
@@ -116,7 +116,8 @@ jobs:
       - name: 驗證 image 分割表（刷機前檢查）
         run: |
           IMG=$(ls openwrt/bin/targets/mediatek/filogic/*-${DEVICE}-squashfs-sysupgrade.bin)
-          bash scripts/verify-image.sh "$IMG" | tee verify-report.txt
+          set -o pipefail
+          bash scripts/verify-image.sh "$IMG" config/packages.txt | tee verify-report.txt
 
       - name: 整理產出
         if: always()

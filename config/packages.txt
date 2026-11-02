@@ -1,5 +1,9 @@
 # 要內建進 image（squashfs）的套件。一行一個；# 開頭是註解。
-# 前綴 "-" = 明確排除（寫成 "# CONFIG_PACKAGE_xxx is not set"）。
+# 前綴 "-" = 明確排除（寫進 per-device 套件字串 "-xxx"，從該機型的 rootfs 拿掉）。
+# 以 CONFIG_ 開頭的行 = 原樣寫進 .config。
+#
+# luci-i18n-* 是 HIDDEN 套件，只能靠語系開關帶入（luci.mk: DEFAULT:=LUCI_LANG_xxx）
+CONFIG_LUCI_LANG_zh_Hant=y
 #
 # 來源：從現役機器的 /etc/apk/world 整理而來。
 #   已移除：base-files / kernel / libc 的版本釘選，以及 libXXX20260213 這類帶 ABI 版號的函式庫
@@ -21,6 +25,10 @@ luci-app-adguardhome
 tailscale
 luci-app-tailscale-community
 luci-i18n-tailscale-community-zh-tw
+
+# --- 不在 world 但機器上有裝（被 luci-i18n-usteer-zh-tw 依賴帶入） ---
+luci-app-usteer
+usteer
 
 # --- 其餘（照 /etc/apk/world） ---
 alfred
