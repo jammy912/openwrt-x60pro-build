@@ -23,6 +23,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    permissions:
+      contents: write   # 建立 GitHub Release 需要
     steps:
       - name: Checkout 本 repo
         uses: actions/checkout@v4
@@ -139,3 +141,34 @@ jobs:
           name: openwrt-${{ env.OPENWRT_TAG }}-${{ env.DEVICE }}
           path: out/
           retention-days: 30
+
+      # 只有全部關卡（含 vermagic、verify-image）都通過才發佈；略過 vermagic 檢查時不發佈
+      - name: 發佈到 GitHub Release
+        if: success() && !inputs.skip_vermagic_check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${OPENWRT_TAG}-107m"
+          REL=rel; mkdir -p "$REL"
+          cp out/*-${DEVICE}-squashfs-sysupgrade.bin out/*-${DEVICE}-initramfs-kernel.bin \
+             out/verify-report.txt out/vermagic.txt "$REL"/
+          (cd "$REL" && sha256sum *.bin > sha256sums)
+          {
+            echo "OpenWrt ${OPENWRT_VER}（$(cat out/version.buildinfo)）for Ruijie RG-X60 Pro，UBI 107M layout。"
+            echo
+            echo "> ⚠️ 只能刷在已刷入 Yuzhii U-Boot（bl-mt798x-dhcpd）且 layout 選 \`ubi-107m\` 的機器。原廠 U-Boot 刷了會開不了機。"
+            echo
+            echo "- board: \`ruijie,rg-x60-pro-107m\`"
+            echo "- vermagic: \`$(cat out/vermagic.txt)\`（與官方 ${OPENWRT_VER} kmods 相同）"
+            echo "- 套件組合與官方 release 相同"
+            echo "- build commit: ${GITHUB_SHA}"
+            echo
+            echo '```'; cat "$REL"/sha256sums; echo '```'
+          } > notes.md
+          # 同版本重跑時覆蓋舊的 release
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release delete "$TAG" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" "$REL"/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "OpenWrt ${OPENWRT_VER} RG-X60 Pro 107M" --notes-file notes.md
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json url,assets --jq '.url, (.assets[].name)'

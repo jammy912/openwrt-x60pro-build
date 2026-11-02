@@ -39,7 +39,8 @@ nmbm0:1024k(bl2),512k(u-boot-env),2048k(Factory),2048k(fip),512k(product_info),5
    - `packages.txt` 的每個套件在 `make defconfig` 之後都還是 `=y`。
    - 編完 kernel 後，`.vermagic` 等於官方 kmods 目錄的 hash。
    - 產出的 image 中，DTB 的 ubi 分割是 107M，board 是 `ruijie,rg-x60-pro-107m`。
-3. 產出在 artifact，內含 `*-squashfs-sysupgrade.bin`、`*-initramfs-kernel.bin`、`sha256sums`、`vermagic.txt`、`verify-report.txt`、`defconfig.diff`。
+3. 全部關卡通過後，會自動發佈到 **Releases**（tag `<openwrt tag>-107m`，例如 `v25.12.6-107m`），附 `*-squashfs-sysupgrade.bin`、`*-initramfs-kernel.bin`、`sha256sums`、`vermagic.txt`、`verify-report.txt`。同版本重跑會覆蓋舊的 release；勾選略過 vermagic 檢查時不發佈。
+4. 不論成功或失敗，完整產出（含 `defconfig.diff`、build log）都會上傳成 Actions artifact，保留 30 天。
 
 在本機驗證 image（Linux 或 WSL）：
 
