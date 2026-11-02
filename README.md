@@ -62,5 +62,10 @@ bash scripts/verify-image.sh <...-ruijie_rg-x60-pro-107m-squashfs-sysupgrade.bin
 3. 進入 failsafe 的 Web Console，執行 `mtd list` 和 `nmbm nmbm0 info`，確認 NAND 容量足夠（nmbm0 ≥ `0x7180000`）。
 4. 把 layout 切成 `ubi-107m`，執行 `mtd erase ubi`，再上傳本 repo 的 sysupgrade.bin。
 5. 開機後確認：`/proc/mtd` 的 ubi 是 `06b00000`，`/sys/class/ubi/ubi0/total_eraseblocks` 是 856。
+6. **先裝回套件，再還原設定，順序不能反。**
+   - `sysupgrade -b` 的備份只包含設定（`/etc/config`、各服務的狀態檔等），**不包含套件清單和程式本體**。
+   - 刷機前另外保存 `/etc/apk/world`。刷完確認 WAN 能連外網後，先 `apk add` 裝回套件，再執行 `sysupgrade -r` 還原設定並重開機。
+   - 順序反過來，就會出現「設定在、程式不在」的狀況，例如 tailscale 的設定還原了，tailscaled 卻沒有裝。
+   - 從 failsafe 重刷一定不會保留設定。刷完到套件裝回之前，沒有 VPN 之類的遠端存取，請在機器旁用網路線操作。
 
 刷 FIP 有變磚風險，救援需要 USB-TTL。使用風險自負。
