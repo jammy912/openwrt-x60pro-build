@@ -39,13 +39,18 @@ echo "套件：內建 ${#INCLUDE[@]} 個，排除 ${#EXCLUDE[@]} 個，原樣設
 # per-device 套件字串決定（include/image.mk 的 DEVICE_EXTRA_PACKAGES / merge_packages），
 # 所以排除要寫成 "-pkg" 放進這個字串，單寫 "is not set" 無效。
 DEVPKG_SYM="CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_${DEVICE}"
-DEVPKG_VAL=$(printf -- '-%s ' "${EXCLUDE[@]}"); DEVPKG_VAL="${DEVPKG_VAL% }"
+DEVPKG_VAL=""
+if [ ${#EXCLUDE[@]} -gt 0 ]; then
+  DEVPKG_VAL=$(printf -- '-%s ' "${EXCLUDE[@]}"); DEVPKG_VAL="${DEVPKG_VAL% }"
+fi
 
 # 從官方 seed 拿掉：所有 device 選擇、建 SDK/ImageBuilder/toolchain/SBOM/全部 userspace 套件
 #（這些只影響產出物與編譯時間，不影響 kernel config），以及要排除的套件
-EXCL_RE=$(printf '%s|' "${EXCLUDE[@]}"); EXCL_RE="${EXCL_RE%|}"
-grep -vE '^CONFIG_TARGET_DEVICE_|^CONFIG_TARGET_ALL_PROFILES=|^CONFIG_(SDK|SDK_LLVM_BPF|IB|MAKE_TOOLCHAIN|ALL_NONSHARED|JSON_CYCLONEDX_SBOM)=' official.buildinfo \
-  | grep -vE "^CONFIG_PACKAGE_(${EXCL_RE})=" > .config
+grep -vE '^CONFIG_TARGET_DEVICE_|^CONFIG_TARGET_ALL_PROFILES=|^CONFIG_(SDK|SDK_LLVM_BPF|IB|MAKE_TOOLCHAIN|ALL_NONSHARED|JSON_CYCLONEDX_SBOM)=' official.buildinfo > .config
+if [ ${#EXCLUDE[@]} -gt 0 ]; then
+  EXCL_RE=$(printf '%s|' "${EXCLUDE[@]}"); EXCL_RE="${EXCL_RE%|}"
+  grep -vE "^CONFIG_PACKAGE_(${EXCL_RE})=" .config > .config.tmp && mv .config.tmp .config
+fi
 
 {
   echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_${DEVICE}=y"
@@ -55,7 +60,7 @@ grep -vE '^CONFIG_TARGET_DEVICE_|^CONFIG_TARGET_ALL_PROFILES=|^CONFIG_(SDK|SDK_L
   echo "# CONFIG_MAKE_TOOLCHAIN is not set"
   echo "# CONFIG_ALL_NONSHARED is not set"
   echo "# CONFIG_JSON_CYCLONEDX_SBOM is not set"
-  echo "${DEVPKG_SYM}=\"${DEVPKG_VAL}\""
+  [ -z "$DEVPKG_VAL" ] || echo "${DEVPKG_SYM}=\"${DEVPKG_VAL}\""
   for c in "${RAWCFG[@]}"; do echo "$c"; done
   for p in "${INCLUDE[@]}"; do echo "CONFIG_PACKAGE_${p}=y"; done
 } >> .config
@@ -81,8 +86,10 @@ for p in "${INCLUDE[@]}"; do chk_y "CONFIG_PACKAGE_${p}"; done
 for p in "${EXCLUDE[@]}"; do
   grep -q "^CONFIG_PACKAGE_${p}=y$" .config && { echo "::error::$p 應排除但被選成 =y（被其他 =y 套件依賴？）"; FAIL=1; }
 done
-grep -qxF "${DEVPKG_SYM}=\"${DEVPKG_VAL}\"" .config \
-  || { echo "::error::per-device 套件字串沒有生效: $(grep "^${DEVPKG_SYM}=" .config || echo 不存在)"; FAIL=1; }
+if [ -n "$DEVPKG_VAL" ]; then
+  grep -qxF "${DEVPKG_SYM}=\"${DEVPKG_VAL}\"" .config \
+    || { echo "::error::per-device 套件字串沒有生效: $(grep "^${DEVPKG_SYM}=" .config || echo 不存在)"; FAIL=1; }
+fi
 grep -q '^CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/' .config \
   || { echo "::error::CONFIG_VERSION_REPO 不是官方 releases，distfeeds 會指錯"; FAIL=1; }
 [ $FAIL = 0 ] || die ".config 驗證失敗（套件名稱在新版可能更名或移除，請修改 config/packages.txt）"

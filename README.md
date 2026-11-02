@@ -51,7 +51,8 @@ bash scripts/verify-image.sh <...-ruijie_rg-x60-pro-107m-squashfs-sysupgrade.bin
 ## 設計重點
 
 - **vermagic 和官方一致**：vermagic 是 kernel `.config` 中所有 `=y`/`=m` 的 md5，會受到被選取 kmod 的 KCONFIG 影響（見 `include/kernel-defaults.mk`）。所以保留官方的 `CONFIG_ALL_KMODS` 和 `CONFIG_COLLECT_KERNEL_DEBUG`，只拿掉 device 選擇、SDK、ImageBuilder 等產出物設定。
-- **新的 board name `ruijie,rg-x60-pro-107m`**：官方 63MB 版的 image 會被 sysupgrade 的 metadata 檢查拒絕。`owut` 和 `attendedsysupgrade` 也已排除，因為它們會去抓官方 image。
+- **套件組合與官方 release 相同**（`config/packages.txt` 為空），其餘套件刷機後再用 apk 安裝。
+- **新的 board name `ruijie,rg-x60-pro-107m`**：官方 63MB 版的 image 會被 sysupgrade 的 metadata 檢查拒絕。image 內仍有官方的 `owut` / `attendedsysupgrade`，**不要用它們升級**。升級伺服器沒有這個 profile，理論上會直接失敗，但不要依賴這一點；一律用本 repo 編出的 sysupgrade.bin 升級。
 - **跨版本升級**：只要改 workflow 的 tag 輸入。上游如果改了相關的 DTS、檔案或套件名稱，workflow 會直接失敗，提醒你人工確認，不會默默編出錯誤的 image。
 
 ## 刷機流程概要
