@@ -29,6 +29,9 @@ dumpimage -T flat_dt -p "$IDX" -o "$T/board.dtb" "$K" >/dev/null
 dtc -q -I dtb -O dts -o "$T/board.dts" "$T/board.dtb"
 
 echo "== DTB root compatible / model =="
+# 有些 dtc 版本把字串列表印成 "a\0b" 而不是 "a", "b"，先統一格式再比對
+#（用 [\]0 而非 \\0：只動「反斜線+0」，不會誤換到數字 0）
+sed -i 's/[\]0/", "/g' "$T/board.dts"
 grep -m2 -E '^\s*(compatible|model) = ' "$T/board.dts"
 grep -m1 -E '^\s*compatible = ' "$T/board.dts" | grep -qF '"ruijie,rg-x60-pro-107m"' \
   || die "board compatible 不是 ruijie,rg-x60-pro-107m"
